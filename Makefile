@@ -1,8 +1,8 @@
-all: nosprintfhostport.so nosprintfhostport
+all: securityprintf.so securityprintf
 .PHONY: lint test
 
 clean:
-	rm -f nosprintfhostport.so nosprintfhostport
+	rm -f securityprintf.so securityprintf
 
 test:
 	go test ./...
@@ -10,8 +10,8 @@ test:
 lint:
 	golangci-lint run ./...
 
-nosprintfhostport:
-	go build ./cmd/nosprintfhostport
+securityprintf:
+	go build ./cmd/securityprintf
 
-nosprintfhostport.so:
-	go build -buildmode=plugin ./plugin/nosprintfhostport.go
+securityprintf.so:
+	go build -buildmode=plugin ./plugin/securityprintf.go

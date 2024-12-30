@@ -5,6 +5,7 @@ import (
 	"go/ast"
 	"go/token"
 	"regexp"
+	"strings"
 
 	"golang.org/x/tools/go/analysis/passes/inspect"
 	"golang.org/x/tools/go/ast/inspector"
@@ -13,11 +14,23 @@ import (
 )
 
 var Analyzer = &analysis.Analyzer{
-	Name:     "nosprintfhostport",
-	Doc:      "Checks for misuse of Sprintf to construct a host with port in a URL.",
+	Name:     "securityprintf",
+	Doc:      "Checks for log printf to avoid security field show in log",
 	Run:      run,
 	Requires: []*analysis.Analyzer{inspect.Analyzer},
 }
+
+var (
+	loggerPrintfReg = map[string]struct{}{
+		"debugf":   {},
+		"infof":    {},
+		"warnf":    {},
+		"printf":   {},
+		"errorf":   {},
+		"fatalf":   {},
+		"warningf": {},
+	}
+)
 
 func run(pass *analysis.Pass) (interface{}, error) {
 	inspector := pass.ResultOf[inspect.Analyzer].(*inspector.Inspector)
@@ -27,10 +40,20 @@ func run(pass *analysis.Pass) (interface{}, error) {
 
 	inspector.Preorder(nodeFilter, func(node ast.Node) {
 		callExpr := node.(*ast.CallExpr)
-		if p, f, ok := getCallExprFunction(callExpr); ok && p == "fmt" && f == "Sprintf" {
-			if err := checkForHostPortConstruction(callExpr); err != nil {
-				pass.Reportf(node.Pos(), "%s", err.Error())
-			}
+		p, f, ok := getCallExprFunction(callExpr)
+		if !ok {
+			return
+		}
+		_, ok = loggerPrintfReg[strings.ToLower(f)]
+		if !ok {
+			return
+		}
+		if strings.Contains(p, "log") || strings.Contains(p, "logger") {
+
+		}
+
+		if err := checkSecurityConstruction(callExpr); err != nil {
+			pass.Reportf(node.Pos(), "%s", err.Error())
 		}
 	})
 
@@ -68,15 +91,15 @@ func getStringLiteral(args []ast.Expr, pos int) (string, bool) {
 	}
 }
 
-// checkForHostPortConstruction checks to see if a sprintf call looks like a URI with a port,
+// checkSecurityConstruction checks to see if a sprintf call looks like a URI with a port,
 // essentially scheme://%s:<something else>, or scheme://user:pass@%s:<something else>.
 //
 // Matching requirements:
 //   - Scheme as per RFC3986 is ALPHA *( ALPHA / DIGIT / "+" / "-" / "." )
 //   - A format string substitution in the host portion, preceded by an optional username/password@
 //   - A colon indicating a port will be specified
-func checkForHostPortConstruction(sprintf *ast.CallExpr) error {
-	fs, ok := getStringLiteral(sprintf.Args, 0)
+func checkSecurityConstruction(printf *ast.CallExpr) error {
+	fs, ok := getStringLiteral(printf.Args, 0)
 	if !ok {
 		return nil
 	}

@@ -1,4 +1,4 @@
-module github.com/stbenjam/no-sprintf-host-port
+module github.com/vlean/security-printf
 
 go 1.18
 

@@ -3,7 +3,7 @@ package main
 import (
 	"golang.org/x/tools/go/analysis/singlechecker"
 
-	"github.com/stbenjam/no-sprintf-host-port/pkg/analyzer"
+	"github.com/vlean/security-printf/pkg/analyzer"
 )
 
 func main() {
