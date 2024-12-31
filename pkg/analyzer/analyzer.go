@@ -42,6 +42,7 @@ var (
 		"credentials":  true,
 		"userpassword": true,
 		"authtoken":    true,
+		"apikey":       true,
 	}
 )
 
@@ -145,13 +146,8 @@ func checkArgs(arg any, pass *analysis.Pass, node ast.Node) (fail bool) {
 					return
 				}
 			case *ast.ValueSpec:
-				if decl.Type != nil {
-					if _, ok := decl.Type.(*ast.StructType); ok {
-						pass.Reportf(node.Pos(), "direct struct type printing is not allowed, please specify fields explicitly")
-						return
-					}
-					if _, ok := decl.Type.(*ast.MapType); ok {
-						pass.Reportf(node.Pos(), "direct map type printing is not allowed, please specify fields explicitly")
+				for _, value := range decl.Values {
+					if fail = checkArgs(value, pass, node); fail {
 						return
 					}
 				}
