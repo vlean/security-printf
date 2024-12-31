@@ -26,7 +26,7 @@ func _() {
 		Token:    "abc123",
 	}
 
-	config := Config{
+	config := &Config{
 		Version: "1.0",
 		Secret:  "xyz789",
 	}
@@ -36,9 +36,9 @@ func _() {
 
 	// 这些应该报错
 	log.Printf("user data: %v", user)          // want "direct struct type printing is not allowed, please specify fields explicitly"
-	fmt.Printf("config: %+v", config)          // want "direct struct type printing is not allowed, please specify fields explicitly"
 	fmt.Printf("password: %s", user.Password)  // want "potentially sensitive field 'Password' should not be logged"
 	fmt.Printf("user token is %s", user.Token) // want "potentially sensitive field 'Token' should not be logged"
+	fmt.Printf("config: %+v", config)          // want "direct struct type printing is not allowed, please specify fields explicitly"
 
 	// 测试 map
 	sensitiveMap := map[string]string{
@@ -57,7 +57,7 @@ func _() {
 	// 这些应该是安全的
 	log.Printf("user name: %s, age: %d", user.Name, user.Age)
 	fmt.Printf("config version: %s", config.Version)
-	//log.Printf("map size: %d", len(sensitiveMap))
+	log.Printf("map size: %d", len(sensitiveMap))
 	fmt.Printf("Hello, %s!", user.Name)
 
 }
