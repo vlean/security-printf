@@ -2,45 +2,62 @@ package p
 
 import (
 	"fmt"
-	"net"
+	"log"
 )
 
+type User struct {
+	Name     string
+	Age      int
+	Password string
+	Token    string
+}
+
+type Config struct {
+	Version string
+	Secret  string
+}
+
 func _() {
+	// 测试敏感字段
+	user := User{
+		Name:     "John",
+		Age:      30,
+		Password: "secret123",
+		Token:    "abc123",
+	}
 
-	_ = fmt.Sprintf("postgres://%s:%s@127.0.0.1/%s", "foo", "bar", "baz")
+	config := Config{
+		Version: "1.0",
+		Secret:  "xyz789",
+	}
+	// 测试复合类型
+	users := []User{{Name: "John", Password: "123"}}
+	log.Printf("users: %v", users) // want "direct struct type printing is not allowed, please specify fields explicitly"
 
-	_ = fmt.Sprintf("http://api.%s/foo", "example.com")
+	// 这些应该报错
+	log.Printf("user data: %v", user)          // want "direct struct type printing is not allowed, please specify fields explicitly"
+	fmt.Printf("config: %+v", config)          // want "direct struct type printing is not allowed, please specify fields explicitly"
+	fmt.Printf("password: %s", user.Password)  // want "potentially sensitive field 'Password' should not be logged"
+	fmt.Printf("user token is %s", user.Token) // want "potentially sensitive field 'Token' should not be logged"
 
-	_ = fmt.Sprintf("http://api.%s:6443/foo", "example.com")
+	// 测试 map
+	sensitiveMap := map[string]string{
+		"username": "john",
+		"password": "secret",
+	}
+	log.Printf("map data: %v", sensitiveMap)           // want "direct map type printing is not allowed, please specify fields explicitly"
+	log.Printf("secret: %s", sensitiveMap["password"]) // want "potentially sensitive field 'password' should not be logged"
 
-	_ = fmt.Sprintf("http://%s/foo", net.JoinHostPort("foo", "80"))
+	// 测试变量名
+	userPassword := "secret123"
+	authToken := "xyz789"
+	log.Printf("auth: %s", userPassword) // want "potentially sensitive field 'userPassword' should not be logged"
+	fmt.Printf("token: %s", authToken)   // want "potentially sensitive field 'authToken' should not be logged"
 
-	_ = fmt.Sprintf("9invalidscheme://%s:%d", "myHost", 70)
+	// 这些应该是安全的
+	log.Printf("user name: %s, age: %d", user.Name, user.Age)
+	fmt.Printf("config version: %s", config.Version)
+	//log.Printf("map size: %d", len(sensitiveMap))
+	fmt.Printf("Hello, %s!", user.Name)
 
-	_ = fmt.Sprintf("gopher://%s/foo", net.JoinHostPort("foo", "80"))
-
-	_ = fmt.Sprintf("telnet+ssl://%s/foo", net.JoinHostPort("foo", "80"))
-
-	_ = fmt.Sprintf("http://%s/foo:bar", net.JoinHostPort("foo", "80"))
-
-	_ = fmt.Sprintf("http://user:password@%s/foo:bar", net.JoinHostPort("foo", "80"))
-
-	_ = fmt.Sprintf("http://example.com:9211")
-
-	_ = fmt.Sprintf("gopher://%s:%d", "myHost", 70) // want "should be constructed with net.JoinHostPort"
-
-	_ = fmt.Sprintf("telnet+ssl://%s:%d", "myHost", 23) // want "should be constructed with net.JoinHostPort"
-
-	_ = fmt.Sprintf("weird3.6://%s:%d", "myHost", 23) // want "should be constructed with net.JoinHostPort"
-
-	_ = fmt.Sprintf("https://user@%s:%d", "myHost", 8443) // want "should be constructed with net.JoinHostPort"
-
-	_ = fmt.Sprintf("postgres://%s:%s@%s:5050/%s", "foo", "bar", "baz", "qux") // want "should be constructed with net.JoinHostPort"
-
-	_ = fmt.Sprintf("https://%s:%d", "myHost", 8443) // want "should be constructed with net.JoinHostPort"
-
-	_ = fmt.Sprintf("https://%s:9211", "myHost") // want "should be constructed with net.JoinHostPort"
-
-	ip := "fd00::1"
-	_ = fmt.Sprintf("http://%s:1936/healthz", ip) // want "should be constructed with net.JoinHostPort"
 }
