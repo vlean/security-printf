@@ -20,31 +20,15 @@ var Analyzer = &analysis.Analyzer{
 }
 
 var (
-	loggerPrintfReg = map[string]struct{}{
-		"tracef":   {},
-		"debugf":   {},
-		"infof":    {},
-		"warnf":    {},
-		"printf":   {},
-		"errorf":   {},
-		"fatalf":   {},
-		"warningf": {},
-	}
-
-	sensitiveFields = map[string]bool{
-		"password":     true,
-		"passwd":       true,
-		"secret":       true,
-		"key":          true,
-		"auth":         true,
-		"token":        true,
-		"credential":   true,
-		"credentials":  true,
-		"userpassword": true,
-		"authtoken":    true,
-		"apikey":       true,
-	}
+	sensitiveFields = map[string]bool{}
+	sensitive       = []string{}
 )
+
+func init() {
+	for _, k := range sensitive {
+		sensitiveFields[strings.ToLower(k)] = true
+	}
+}
 
 func run(pass *analysis.Pass) (interface{}, error) {
 	inspector := pass.ResultOf[inspect.Analyzer].(*inspector.Inspector)
@@ -56,7 +40,15 @@ func run(pass *analysis.Pass) (interface{}, error) {
 		callExpr := node.(*ast.CallExpr)
 
 		// 检查是否是格式化打印函数
-		if !isPrintfFunction(callExpr) {
+		funcType := isLoggerFunction(callExpr)
+		if funcType == funcOther {
+			return
+		}
+		if funcType == funcPrint {
+			_, ok := getStringLiteral(callExpr.Args, 0)
+			if !ok {
+				pass.Reportf(node.Pos(), "cannot determine format string for %v", callExpr.Args[0])
+			}
 			return
 		}
 
@@ -65,26 +57,16 @@ func run(pass *analysis.Pass) (interface{}, error) {
 			// 获取格式化字符串
 			fmtStr, ok := getStringLiteral(callExpr.Args, 0)
 			if !ok {
-				// 如果无法获取格式化字符串，检查所有参数
-				//for _, arg := range callExpr.Args {
-				//	if err := checkArgument(arg); err != nil {
-				//		pass.Reportf(node.Pos(), "%v", err)
-				//		return
-				//	}
-				//}
 				return
 			}
 
 			_ = fmtStr
-			// 检查格式化字符串中是否有 %v, %+v, %#v 等通用格式化动词
-			//if strings.Contains(fmtStr, "%v") || strings.Contains(fmtStr, "%+v") || strings.Contains(fmtStr, "%#v") {
 			// 检查对应的参数
 			for _, arg := range callExpr.Args[1:] {
 				if fail := checkArgs(arg, pass, node); fail {
 					return
 				}
 			}
-			//}
 		}
 	})
 
@@ -194,33 +176,25 @@ func checkArgs(arg any, pass *analysis.Pass, node ast.Node) (fail bool) {
 	return false
 }
 
-// isPrintfFunction checks if a call expression is a printf-style function
-func isPrintfFunction(call *ast.CallExpr) bool {
-	// 检查调用表达式
-	switch fun := call.Fun.(type) {
-	case *ast.SelectorExpr:
-		// 检查包名和函数名
-		pkg, name, ok := extractPackageAndName(fun)
-		if !ok {
-			return false
-		}
+const (
+	funcPrint = iota
+	funcPrintf
+	funcOther
+)
 
-		// 检查指定日志函数
-		if _, ok = loggerPrintfReg[strings.ToLower(name)]; ok {
-			return true
-		}
-
-		// 检查是否是常见的日志包
-		switch pkg {
-		case "log", "glog", "logrus", "klog", "zap", "logger", "logx":
-			// 检查函数名是否以 'f' 结尾
-			if strings.HasSuffix(name, "f") {
-				return true
-			}
-		}
-
+// isLoggerFunction checks if a call expression is a printf-style function
+func isLoggerFunction(call *ast.CallExpr) int {
+	fun, ok := call.Fun.(*ast.SelectorExpr)
+	if !ok {
+		return funcOther
 	}
-	return false
+	switch fun.Sel.Name {
+	case "Debug", "Info", "Warn", "Trace", "Fatal", "Error", "Println":
+		return funcPrint
+	case "Debugf", "Infof", "Printf", "Warnf", "Tracef", "Fatalf", "Errorf":
+		return funcPrintf
+	}
+	return funcOther
 }
 
 // getStringLiteral attempts to get a string literal from a list of expressions at a given index
@@ -259,10 +233,19 @@ func checkIdentifier(id *ast.Ident) error {
 	return nil
 }
 
-func extractPackageAndName(sel *ast.SelectorExpr) (pkg string, name string, ok bool) {
-	ident, ok := sel.X.(*ast.Ident)
-	if !ok {
-		return "", "", false
+func extractNames(sel *ast.SelectorExpr) (name []string) {
+	switch t := sel.X.(type) {
+	case *ast.SelectorExpr:
+		name = extractNames(t)
+	case *ast.CallExpr:
+		if ident, ok := t.Fun.(*ast.Ident); ok {
+			name = append(name, ident.Name)
+		}
+		if ident, ok := t.Fun.(*ast.SelectorExpr); ok {
+			name = append(name, extractNames(ident)...)
+		}
+	case *ast.Ident:
+		name = []string{t.Name}
 	}
-	return ident.Name, sel.Sel.Name, true
+	return append(name, sel.Sel.Name)
 }

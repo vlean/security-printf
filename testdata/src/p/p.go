@@ -10,11 +10,31 @@ type User struct {
 	Age      int
 	Password string
 	Token    string
+
+	Logger Logger
 }
 
 type Config struct {
 	Version string
 	Secret  string
+}
+type logger struct {
+}
+
+func (l *logger) With(k ...any) Logger {
+	return l
+}
+func (l *logger) Info(v ...any) {
+	log.Print(v)
+}
+
+type Logger interface {
+	Info(v ...any)
+	With(v ...any) Logger
+}
+
+func GetLogger() Logger {
+	return &logger{}
 }
 
 func _() {
@@ -24,7 +44,12 @@ func _() {
 		Age:      30,
 		Password: "secret123",
 		Token:    "abc123",
+		Logger:   GetLogger(),
 	}
+
+	GetLogger().Info("test")
+	GetLogger().Info(user)
+	user.Logger.With("k", "v").Info(user)
 
 	config := &Config{
 		Version: "1.0",
